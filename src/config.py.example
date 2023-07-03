@@ -33,6 +33,7 @@ sys_clock_speed = False
 swap = False
 memory = True
 uptime = True
+load_avg_15min = True
 # Enable wifi_signal for unit of measuring % or wifi_signal_dbm for unit of meaning dBm
 wifi_signal = True
 wifi_signal_dbm = False

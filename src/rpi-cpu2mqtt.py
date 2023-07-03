@@ -104,6 +104,10 @@ def check_uptime():
     
     return int(subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE).communicate()[0])
 
+def check_load_avg_15min():
+    full_cmd = "awk '{print $3}' /proc/loadavg"
+    
+    return subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE).communicate()[0]
 
 def check_model_name():
    full_cmd = "cat /sys/firmware/devicetree/base/model"
@@ -188,6 +192,10 @@ def config_json(what_config):
         data["icon"] = "mdi:calendar"
         data["name"] = hostname + " Uptime"
         data["unit_of_measurement"] = "days"
+    elif what_config == "load_avg_15min":
+        data["icon"] = "mdi:cpu-64-bit"
+        data["name"] = hostname + " 15m load average"
+        data["unit_of_measurement"] = ""
     elif what_config == "wifi_signal":
         data["icon"] = "mdi:wifi"
         data["name"] = hostname + " Wifi Signal"
@@ -203,7 +211,7 @@ def config_json(what_config):
 
 
 def publish_to_mqtt(cpu_load=0, cpu_temp=0, used_space=0, voltage=0, sys_clock_speed=0, swap=0, memory=0,
-                    uptime_days=0, wifi_signal=0, wifi_signal_dbm=0):
+                    uptime_days=0, load_avg_15min=0, wifi_signal=0, wifi_signal_dbm=0):
     # connect to mqtt server
     client = paho.Client()
     client.username_pw_set(config.mqtt_user, config.mqtt_password)
@@ -266,6 +274,13 @@ def publish_to_mqtt(cpu_load=0, cpu_temp=0, used_space=0, voltage=0, sys_clock_s
                            config_json('uptime_days'), qos=0)
             time.sleep(config.sleep_time)
         client.publish(config.mqtt_topic_prefix + "/" + hostname + "/uptime_days", uptime_days, qos=1)
+        time.sleep(config.sleep_time)
+    if config.load_avg_15min:
+        if config.discovery_messages:
+            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_load_avg_15min/config",
+                           config_json('load_avg_15min'), qos=0)
+            time.sleep(config.sleep_time)
+        client.publish(config.mqtt_topic_prefix + "/" + hostname + "/load_avg_15min", load_avg_15min, qos=1)
         time.sleep(config.sleep_time)
     if config.wifi_signal:
         if config.discovery_messages:
@@ -332,12 +347,14 @@ if __name__ == '__main__':
         memory = check_memory()
     if config.uptime:
         uptime_days = check_uptime()
+    if config.load_avg_15min:
+        load_avg_15min = check_load_avg_15min()
     if config.wifi_signal:
         wifi_signal = check_wifi_signal('')
     if config.wifi_signal_dbm:
         wifi_signal_dbm = check_wifi_signal('dbm')
     # Publish messages to MQTT
     if hasattr(config, 'group_messages') and config.group_messages:
-        bulk_publish_to_mqtt(cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, wifi_signal, wifi_signal_dbm)
+        bulk_publish_to_mqtt(cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, load_avg_15min, wifi_signal, wifi_signal_dbm)
     else:
-        publish_to_mqtt(cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, wifi_signal, wifi_signal_dbm)
+        publish_to_mqtt(cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, load_avg_15min, wifi_signal, wifi_signal_dbm)
