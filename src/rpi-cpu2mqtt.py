@@ -109,6 +109,11 @@ def check_load_avg_15min():
     
     return subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE).communicate()[0]
 
+def check_fan_speed():
+    full_cmd = "awk '{print $1}' /tmp/fanspeed.txt"
+
+    return int(subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE).communicate()[0])
+
 def check_model_name():
     full_cmd = "cat /sys/firmware/devicetree/base/model"
     model_name = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode("utf-8")
@@ -205,6 +210,11 @@ def config_json(what_config):
         # data["name"] = hostname + " 15m load average"
         data["name"] = "15m load average"
         data["unit_of_measurement"] = ""
+    elif what_config == "fan_speed":
+        data["icon"] = "mdi:fan"
+        # data["name"] = hostname + " fan speed"
+        data["name"] = "fan speed"
+        data["unit_of_measurement"] = "%"
     elif what_config == "wifi_signal":
         data["icon"] = "mdi:wifi"
         # data["name"] = hostname + " Wifi Signal"
@@ -222,7 +232,7 @@ def config_json(what_config):
 
 
 def publish_to_mqtt(cpu_load=0, cpu_temp=0, used_space=0, voltage=0, sys_clock_speed=0, swap=0, memory=0,
-                    uptime_days=0, load_avg_15min=0, wifi_signal=0, wifi_signal_dbm=0):
+                    uptime_days=0, load_avg_15min=0, fan_speed=0, wifi_signal=0, wifi_signal_dbm=0):
     # connect to mqtt server
     client = paho.Client()
     client.username_pw_set(config.mqtt_user, config.mqtt_password)
@@ -293,6 +303,13 @@ def publish_to_mqtt(cpu_load=0, cpu_temp=0, used_space=0, voltage=0, sys_clock_s
             time.sleep(config.sleep_time)
         client.publish(config.mqtt_topic_prefix + "/" + hostname + "/load_avg_15min", load_avg_15min, qos=1)
         time.sleep(config.sleep_time)
+    if config.fan_speed:
+        if config.discovery_messages:
+            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_fan_speed/config",
+                            config_json('fan_speed'), qos=0)
+            time.sleep(config.sleep_time)
+        client.publish(config.mqtt_topic_prefix + "/" + hostname + "/fan_speed", fan_speed, qos=1)
+        time.sleep(config.sleep_time)
     if config.wifi_signal:
         if config.discovery_messages:
             client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_wifi_signal/config",
@@ -360,12 +377,14 @@ if __name__ == '__main__':
         uptime_days = check_uptime()
     if config.load_avg_15min:
         load_avg_15min = check_load_avg_15min()
+    if config.fan_speed:
+        fan_speed = check_fan_speed()
     if config.wifi_signal:
         wifi_signal = check_wifi_signal('')
     if config.wifi_signal_dbm:
         wifi_signal_dbm = check_wifi_signal('dbm')
     # Publish messages to MQTT
     if hasattr(config, 'group_messages') and config.group_messages:
-        bulk_publish_to_mqtt(cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, load_avg_15min, wifi_signal, wifi_signal_dbm)
+        bulk_publish_to_mqtt(cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, wifi_signal, wifi_signal_dbm)
     else:
-        publish_to_mqtt(cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, load_avg_15min, wifi_signal, wifi_signal_dbm)
+        publish_to_mqtt(cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, load_avg_15min, fan_speed, wifi_signal, wifi_signal_dbm)
